@@ -1,2 +1,3 @@
 # Linkeddata
-Simple page to sparql dbpedia using use Christopher Gutteridge’s PHP library 
+A Simple page to sparql dbpedia using Christopher Gutteridge’s PHP library Edit
+
