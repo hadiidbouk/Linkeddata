@@ -1,6 +1,8 @@
 
 <?php
 
+
+
 require_once( "sparqllib.php" );
 
 $db = sparql_connect( "http://dbpedia.org/sparql" );
@@ -20,7 +22,7 @@ $query = '
   	PREFIX dbpedia: <http://dbpedia.org/>
   	PREFIX dbpprop: <http://dbpedia.org/property/> ';
 
-if(!isset($_GET['sbj']) || !isset($_GET['nb']) ){
+if(!isset($_GET['sbj']) || !isset($_GET['nb']) || !isset($_GET['offnb']) | !isset($_GET['first'])){
 	
     // Return error message
     die( header('HTTP/1.0 500 Internal Server Error'));
@@ -29,6 +31,10 @@ if(!isset($_GET['sbj']) || !isset($_GET['nb']) ){
 
 $subj = $_GET['sbj']=="Gun"?"Gun":"Missile";
 $limit =$_GET['nb'];
+$first = $_GET['first'];
+$offnb = $_GET['offnb'];
+
+
 	$q = $query.'SELECT  ?Title ?Description ?Picture WHERE {
 					?gun rdfs:label ?Title;
 					     dbo:abstract ?Description;
@@ -36,9 +42,11 @@ $limit =$_GET['nb'];
 					filter(?Title="'.$subj.'"@en)
 					filter langMatches(lang(?Description) , "En")
 					}';
-$rows = sparql_query( $q ); 
-if( !$rows ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit; }
-  
+if($first == 'true')	{	
+	//with sbj		
+		$sbjResult = sparql_query( $q ); 
+		if( !$sbjResult ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit;}
+  }
 
 	if($subj == "Gun"){
 		$q= $query.' select DISTINCT ?Name (Min(?n) as ?Origin) ?Description ?Length ?Weight  ?Picture WHERE {
@@ -54,7 +62,7 @@ if( !$rows ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit; }
 
  					}
  					
- 					 LIMIT '.$limit;
+ 					 ';
 	}
 	else{
 		$q= $query.'SELECT DISTINCT ?Name Min(?Origin) as ?Origin ?Description ?Picture  WHERE {
@@ -71,37 +79,82 @@ if( !$rows ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit; }
 					}
 					order by Desc(strlen(str(?Description)))
 
-					LIMIT '.$limit;
+					';
 	}
+// if(isset($_GET["offnb"])){
 
-$rows2 = sparql_query( $q ); 
-if( !$rows2 ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit; }
-$sbjArray =  array();
-$itemsArray = array();
+	$query = $q . "offset ".$offnb." LIMIT ".$limit;
+
+	$itemsResult = sparql_query( $query ); 
+	if( !$itemsResult ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit;}
+
+	
+	$sbjArray =  array();
+	$itemsArray = array();
+
+	if($first == 'true'){
+		while( $row = sparql_fetch_array( $sbjResult ) )
+		array_push($sbjArray, $row);
+		$nbQuery = $q. " offset " .( $limit)." LIMIT ".$limit;
+	}
+	else
+		$nbQuery = $q. " offset " .($offnb + $limit)." LIMIT ".$limit;
+	while( $row = sparql_fetch_array( $itemsResult ) )
+		array_push($itemsArray, $row);
+
+	$nbArray  = array('Type' =>$subj );
+	$nbResult = sparql_query( $nbQuery ); 
+	if( !$nbResult ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit;}
+	// $x=(string)sparql_num_rows($nbResult);
+	// echo "rowsnb : $x/// subject : $subj/// limit : $limit/// offnb : $offnb /// first : $first///q:$nbQuery";
+	// exit();
+	if(sparql_num_rows($nbResult) < $limit)
+		$nbArray  = array('off' =>'false' );
+
+	else
+		$nbArray  = array('off' =>'true' );
 
 
-//sure it's a wrong way to do it but it's sparqllib..
-while( $row = sparql_fetch_array( $rows ) )
-	array_push($sbjArray, $row);
-while ($row = sparql_fetch_array($rows2))
-	array_push($itemsArray, $row);
+
+	$merge = array_merge($nbArray,$sbjArray); 
+	$merge = array_merge($merge,$itemsArray); 
+
+	echo json_encode($merge);
+// }else{
+// 	$nbQuery = $q. " offset " .($_GET["nb"])." LIMIT ".$limit;
+
+// 	$rows3 = sparql_query( $nbQuery ); 
+
+// 	if(sparql_num_rows($rows3) < $limit)
+// 		$nbArray  = array('off' =>'false' );
+
+// 	else
+// 		$nbArray  = array('off' =>'true' );
 
 
-$merge = array_merge($sbjArray, $itemsArray); 
-echo json_encode($merge);
+// // 	$q.=" LIMIT ".$limit;
+// $rows2 = sparql_query( $q ); 
+// if( !$rows2 ) { print sparql_errno() . ": " . sparql_error(). "\n"; exit; }
+// $sbjArray =  array();
+// $itemsArray = array();
+
+
+
+// //sure it's a wrong way to do it but it's sparqllib..
+// while( $row = sparql_fetch_array( $rows ) )
+// 	array_push($sbjArray, $row);
+// while ($row = sparql_fetch_array($rows2))
+// 	array_push($itemsArray, $row);
+
+// $merge = array_merge($nbArray,$sbjArray); 
+
+// $merge = array_merge($merge, $itemsArray); 
+// echo json_encode($merge);
+// //}
 
 
 
 
 
 
-function FormatSubjectHTML($s){
-
-}
-
-class subject{
-	public  $Title;
-	public  $Description;
-	public  $ImgURL;
-}
 ?>
